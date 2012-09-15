@@ -216,7 +216,8 @@ function! java_helper#compare_items(item1, item2)
 endfunction
 
 function! java_helper#complete_done()
-  if !exists('b:java_helper_last_omniretval')
+  if !exists('b:java_helper_last_omnibase') ||
+        \ !exists('b:java_helper_last_omniretval')
     return
   endif
   let line = getline('.')
