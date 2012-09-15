@@ -87,26 +87,36 @@ function! java_helper#list_classes(file)
   endif
 endfunction
 
+function! java_helper#list_jarfiles()
+  let jars = []
+  call add(jars, java_helper#find_jarfile('rt.jar'))
+  " TODO:
+  return jars
+endfunction
+
 " setup internal data for this plugin.
 function! java_helper#setup(force)
   if !a:force && len(s:classes) != 0
     return
   endif
-  let jarfile = java_helper#find_jarfile('rt.jar')
-  let classes = java_helper#list_classes(jarfile)
-  let s:classes = java_helper#assort_by_shortname(classes)
+  let jars = java_helper#list_jarfiles()
+  let table = {}
+  for jar in jars
+    let classes = java_helper#list_classes(jar)
+    call java_helper#assort_by_shortname(table, classes)
+  endfor
+  let s:classes = table
 endfunction
 
-function! java_helper#assort_by_shortname(classes)
-  let table = {}
+function! java_helper#assort_by_shortname(table, classes)
   for class in a:classes
     let name = java_helper#_simple_name(class)
-    call java_helper#_add(table, name, class)
+    call java_helper#_add(a:table, name, class)
   endfor
-  for names in values(table)
+  for names in values(a:table)
     call sort(names, 'java_helper#compare_class')
   endfor
-  return table
+  return a:table
 endfunction
 
 " get full class name by short name.
@@ -215,7 +225,13 @@ function! java_helper#compare_items(item1, item2)
   return diff
 endfunction
 
+" CompleteDone handler.
 function! java_helper#complete_done()
+  call java_helper#finish_complete()
+endfunction
+
+" add import statement if can, replace to short name.
+function! java_helper#finish_complete()
   if !exists('b:java_helper_last_omnibase') ||
         \ !exists('b:java_helper_last_omniretval')
     return
