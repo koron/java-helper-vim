@@ -65,7 +65,7 @@ function! java_helper#find_jarfile(name)
   end
 endfunction
 
-" jar内の(主要)クラス一覧を取得する
+" list all (important) classes in a jar file.
 function! java_helper#list_classes(file)
   if a:file ==# '' || !filereadable(a:file)
     return []
@@ -82,6 +82,7 @@ function! java_helper#list_classes(file)
   endif
 endfunction
 
+" setup internal data for this plugin.
 function! java_helper#setup(force)
   if !a:force && len(s:classes) != 0
     return
@@ -103,6 +104,7 @@ function! java_helper#assort_by_shortname(classes)
   return table
 endfunction
 
+" get full class name by short name.
 function! java_helper#fullname(short_name)
   call java_helper#setup(0)
   return get(s:classes, a:short_name, [])
