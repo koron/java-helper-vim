@@ -3,3 +3,8 @@
 let g:java_helper_loaded = strftime("%c")
 
 setlocal omnifunc=java_helper#omni_complete
+
+augroup java_helper
+  autocmd!
+  autocmd CompleteDone <buffer> call java_helper#complete_done()
+augroup END

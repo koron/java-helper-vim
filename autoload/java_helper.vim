@@ -133,6 +133,7 @@ endfunction
 function! java_helper#omni_second(base)
   call java_helper#setup(0)
   let short_keys = keys(s:classes)
+  call filter(short_keys, 'v:val =~# a:base')
   call filter(short_keys, 'v:val !~# "\\$"')
   call sort(short_keys)
 
@@ -141,9 +142,6 @@ function! java_helper#omni_second(base)
   let match3 = []
 
   for short_name in short_keys
-    if short_name !~# a:base
-      continue
-    endif
     let values = s:classes[short_name]
     for full_name in values
       let item = { 
@@ -157,7 +155,12 @@ function! java_helper#omni_second(base)
       if short_name ==# a:base
         call add(match1, item)
       else
-        call add(match3, item)
+        let idx = match(short_name, a:base)
+        if idx == 0
+          call add(match2, item)
+        else
+          call add(match3, item)
+        endif
       endif
     endfor
   endfor
@@ -166,7 +169,10 @@ function! java_helper#omni_second(base)
   call sort(match2, 'java_helper#compare_items')
   call sort(match3, 'java_helper#compare_items')
 
-  return { 'words': match1 + match2 + match3, 'refresh': 'always' }
+  let retval = { 'words': match1 + match2 + match3, 'refresh': 'always' }
+  let b:java_helper_last_omnibase = a:base
+  let b:java_helper_last_omniretval = retval
+  return retval
 endfunction
 
 function! java_helper#package_name(full_name)
@@ -198,4 +204,17 @@ function! java_helper#compare_items(item1, item2)
   endif
   let diff = java_helper#strcmp(a:item1['word'], a:item2['word'])
   return diff
+endfunction
+
+function! java_helper#complete_done()
+  if !exists('b:java_helper_last_omniretval')
+    return
+  endif
+  let selected = getline('.')[b:java_helper_last_omnibase : col('.')]
+
+  " TODO: 
+  "echo 'DONE: '.selected
+
+  unlet b:java_helper_last_omnibase
+  unlet b:java_helper_last_omniretval
 endfunction
