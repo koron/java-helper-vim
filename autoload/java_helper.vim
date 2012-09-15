@@ -127,7 +127,12 @@ function! java_helper#omni_first()
   let lstr = getline('.')
   let cnum = col('.')
   let idx = match(lstr, '\k\+\%' . cnum . 'c')
-  return idx >= 0 ? idx : -3
+  if idx >= 0
+    let b:java_helper_last_omnibase = idx
+    return idx
+  else
+    return -1
+  endif
 endfunction
 
 function! java_helper#omni_second(base)
@@ -144,8 +149,9 @@ function! java_helper#omni_second(base)
   for short_name in short_keys
     let values = s:classes[short_name]
     for full_name in values
-      let item = { 
-            \ 'word': short_name, 
+      let item = {
+            \ 'word': full_name,
+            \ 'abbr': short_name,
             \ 'menu': java_helper#package_name(full_name),
             \ '_order': java_helper#_get_weight(full_name)
             \ }
@@ -170,7 +176,6 @@ function! java_helper#omni_second(base)
   call sort(match3, 'java_helper#compare_items')
 
   let retval = { 'words': match1 + match2 + match3, 'refresh': 'always' }
-  let b:java_helper_last_omnibase = a:base
   let b:java_helper_last_omniretval = retval
   return retval
 endfunction
@@ -202,6 +207,10 @@ function! java_helper#compare_items(item1, item2)
   if diff != 0
     return diff
   endif
+  let diff = java_helper#strcmp(a:item1['abbr'], a:item2['abbr'])
+  if diff != 0
+    return diff
+  endif
   let diff = java_helper#strcmp(a:item1['word'], a:item2['word'])
   return diff
 endfunction
@@ -210,11 +219,87 @@ function! java_helper#complete_done()
   if !exists('b:java_helper_last_omniretval')
     return
   endif
-  let selected = getline('.')[b:java_helper_last_omnibase : col('.')]
+  let line = getline('.')
+  let start = b:java_helper_last_omnibase
+  let end = col('.')
+  let selected = line[start : end]
 
-  " TODO: 
-  "echo 'DONE: '.selected
+  if java_helper#add_import(selected)
+    let prev = start > 0 ? line[0 : start - 1] : ''
+    let short = java_helper#_simple_name(selected)
+    call setline('.', prev . short . line[end : ])
+  endif
 
   unlet b:java_helper_last_omnibase
   unlet b:java_helper_last_omniretval
+endfunction
+
+function! java_helper#get_imports_range()
+  let save_pos = getpos('.')
+  try
+    normal! gg
+    let start = search('\m^import .*;', 'cW')
+    if start == 0
+      return []
+    endif
+    normal! G
+    let end = search('\m^import .*;', 'bcW')
+    if end == 0
+      return [start, start]
+    endif
+    return [start, end]
+  finally
+    call setpos('.', save_pos)
+  endtry
+endfunction
+
+" scan import which match full class name.
+" 0:found, 1:not, 2:cant
+function! java_helper#scan_import(full_name, start, end)
+  let short_name = java_helper#_simple_name(a:full_name)
+  let lines = getline(a:start, a:end)
+  for line in lines
+    let full = matchstr(line, '\m^import\s\+\zs.\+\ze;')
+    let short = java_helper#_simple_name(full)
+    if full ==# a:full_name
+      return 0
+    elseif short ==# short_name
+      return 2
+    endif
+  endfor
+  return 1
+endfunction
+
+function! java_helper#get_import_line(full_name, range)
+  if len(a:range) < 2
+    " consider package statement
+    if getline(1) =~# '\m^package\s'
+      if getline(2) =~# '\m^\s*$'
+        return 2
+      else
+        return 1
+      endif
+    endif
+    return 0
+  else
+    " TODO: consider import block.
+    return a:range[1]
+  endif
+endfunction
+
+function! java_helper#add_import(full_name)
+  let range = java_helper#get_imports_range()
+  " detect existing import statement.
+  if len(range) == 2
+    let retval = java_helper#scan_import(a:full_name, range[0], range[1])
+    if retval == 0
+      return 1
+    elseif retval == 2
+      return 0
+    endif
+  endif
+  " insert an import statement.
+  let pos = java_helper#get_import_line(a:full_name, range)
+  call append(pos, 'import '.a:full_name.';')
+  return 1
 endfunction
