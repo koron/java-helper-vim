@@ -7,12 +7,12 @@ let s:classes = {}
 
 "###########################################################################
 
-" get JAVA_HOME value.
-function! java_helper#_get_home()
+" regulate path (convert Windows style to UNIX style if needs)
+function! java_helper#regulate_path(path)
   if &shellslash
-    return substitute($JAVA_HOME, '\\', '/', 'g')
+    return substitute(a:path, '\\', '/', 'g')
   else
-    return $JAVA_HOME
+    return a:path
   endif
 endfunction
 
@@ -62,7 +62,7 @@ endfunction
 
 " find jar file, return its full path.
 function! java_helper#find_jarfile(name)
-  let path = java_helper#_get_home() . '/jre/lib/' . a:name
+  let path = java_helper#regulate_path($JAVA_HOME) . '/jre/lib/' . a:name
   if filereadable(path)
     return path
   else
@@ -78,19 +78,29 @@ function! java_helper#list_classes(file)
     let lines = split(system('jar -tf ' . a:file), '\n')
     " extract only classes
     call filter(lines, 'v:val =~# "\\.class$"')
+    " remove anonymous classes.
+    call filter(lines, 'v:val !~# "\\m\\$\\d\\+\\.class$"')
     " arrange format of each line (full class name).
     call map(lines, 'substitute(v:val, "\\m/", ".", "g")')
     call map(lines, 'substitute(v:val, "\\m\\.class$", "", "")')
-    " remove anonymous classes.
-    call filter(lines, 'v:val !~# "\\m\\$\\d\\+$"')
     return lines
   endif
 endfunction
 
+function! java_helper#is_android()
+  " TODO:
+  return 0
+endfunction
+
 function! java_helper#list_jarfiles()
   let jars = []
-  call add(jars, java_helper#find_jarfile('rt.jar'))
-  " TODO:
+  if java_helper#is_android()
+    " TODO:
+    let sdkdir = java_helper#regulate_path($ANDROID_SDK)
+    call add(jars, sdkdir . '/platforms/android-16/android.jar')
+  else
+    call add(jars, java_helper#find_jarfile('rt.jar'))
+  endif
   return jars
 endfunction
 
