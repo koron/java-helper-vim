@@ -37,12 +37,17 @@ endfunction
 
 " get weight (significance) of class
 function! java_helper#_get_weight(name)
-  if a:name =~# '^java\.awt\.' | return 110 | endif
-  if a:name =~# '^java\.' | return 100 | endif
-  if a:name =~# '^javax\.' | return 200 | endif
-  if a:name =~# '^android\.' | return 300 | endif
-  if a:name =~# '^com\.\(sun\|oracle\)\.' | return 900 | endif
-  return 999
+  if a:name =~# '\M^java.awt.' | return 120 | endif
+  if a:name =~# '\M^javax.' | return 110 | endif
+  if a:name =~# '\M^java.lang.' | return 100 | endif
+  if a:name =~# '\M^java.io.' | return 101 | endif
+  if a:name =~# '\M^java.util.' | return 102 | endif
+  if a:name =~# '\M^java.net.' | return 103 | endif
+  if a:name =~# '\M^java.' | return 109 | endif
+  if a:name =~# '\M^android.' | return 200 | endif
+  if a:name =~# '\M^com.\(sun\|oracle\).' | return 900 | endif
+  if a:name =~# '\M^sun.' | return 900 | endif
+  return 499
 endfunction
 
 function! java_helper#compare_class(item1, item2)
@@ -108,4 +113,89 @@ endfunction
 function! java_helper#fullname(short_name)
   call java_helper#setup(0)
   return get(s:classes, a:short_name, [])
+endfunction
+
+function! java_helper#omni_complete(findstart, base)
+  if a:findstart
+    return java_helper#omni_first()
+  else
+    return java_helper#omni_second(a:base)
+  endif
+endfunction
+
+function! java_helper#omni_first()
+  let lstr = getline('.')
+  let cnum = col('.')
+  let idx = match(lstr, '\k\+\%' . cnum . 'c')
+  return idx >= 0 ? idx : -3
+endfunction
+
+function! java_helper#omni_second(base)
+  call java_helper#setup(0)
+  let short_keys = keys(s:classes)
+  call filter(short_keys, 'v:val !~# "\\$"')
+  call sort(short_keys)
+
+  let match1 = []
+  let match2 = []
+  let match3 = []
+
+  for short_name in short_keys
+    if short_name !~# a:base
+      continue
+    endif
+    let values = s:classes[short_name]
+    for full_name in values
+      let item = { 
+            \ 'word': short_name, 
+            \ 'menu': java_helper#package_name(full_name),
+            \ '_order': java_helper#_get_weight(full_name)
+            \ }
+      if item['_order'] >= 500
+        continue
+      endif
+      if short_name ==# a:base
+        call add(match1, item)
+      else
+        call add(match3, item)
+      endif
+    endfor
+  endfor
+
+  call sort(match1, 'java_helper#compare_items')
+  call sort(match2, 'java_helper#compare_items')
+  call sort(match3, 'java_helper#compare_items')
+
+  return { 'words': match1 + match2 + match3, 'refresh': 'always' }
+endfunction
+
+function! java_helper#package_name(full_name)
+  if a:full_name =~# '\.'
+    return substitute(a:full_name, '\.[^.]*$', '', '')
+  else
+    return '<no package>'
+  endif
+endfunction
+
+function! java_helper#strcmp(str1, str2)
+  if a:str1 <# a:str2
+    return -1
+  elseif a:str1 ==# a:str2
+    return 0
+  else
+    return 1
+  endif
+endfunction
+
+function! java_helper#compare_items(item1, item2)
+  let diff = a:item1['_order'] - a:item2['_order']
+  if diff != 0
+    return diff
+  endif
+  let diff = java_helper#strcmp(a:item1['menu'], a:item2['menu'])
+  if diff != 0
+    return diff
+  endif
+  let diff = java_helper#strcmp(a:item1['word'], a:item2['word'])
+  return diff
 endfunction
