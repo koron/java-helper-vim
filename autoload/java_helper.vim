@@ -1,4 +1,4 @@
-" vim:set ts=8 sts=2 sw=2 tw=0 et:
+" vim:set ts=8 sts=2 sw=2 tw=0 et nowrap:
 "
 " java_helper.vim - Autoload plugin of Java Helper Plugin for Vim.
 "
@@ -119,19 +119,7 @@ endfunction
 
 " list all (important) classes in a jar file.
 function! java_helper#list_classes(file)
-  if a:file ==# '' || !filereadable(a:file)
-    return []
-  else
-    let lines = split(system('jar -tf ' . a:file), '\n')
-    " extract only classes
-    call filter(lines, 'v:val =~# "\\.class$"')
-    " remove anonymous classes.
-    call filter(lines, 'v:val !~# "\\m\\$\\d\\+\\.class$"')
-    " arrange format of each line (full class name).
-    call map(lines, 'substitute(v:val, "\\m/", ".", "g")')
-    call map(lines, 'substitute(v:val, "\\m\\.class$", "", "")')
-    return lines
-  endif
+  return java_helper#db_load_jar(a:file)
 endfunction
 
 " setup internal data for this plugin.
@@ -342,4 +330,25 @@ function! java_helper#add_import(full_name)
   let pos = java_helper#get_import_line(a:full_name, range)
   call append(pos, 'import '.a:full_name.';')
   return 1
+endfunction
+
+"###########################################################################
+" DB
+
+function! java_helper#db_load_jar(jarfile)
+  if a:jarfile ==# '' || !filereadable(a:jarfile)
+    return []
+  endif
+  let classes = split(system('jar -tf ' . a:jarfile), '\n')
+  call filter(classes, 'java_helper#db_load_jar_filter(v:val)')
+  call map(classes, 'java_helper#db_load_jar_map(v:val)')
+  return classes
+endfunction
+
+function! java_helper#db_load_jar_filter(entry)
+  return a:entry =~# '\m\.class$' && a:entry !~# '\m\$\d\+\.class$'
+endfunction
+
+function! java_helper#db_load_jar_map(entry)
+  return substitute(a:entry[:-7], '\m/', '.', 'g')
 endfunction
