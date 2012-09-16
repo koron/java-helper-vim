@@ -87,6 +87,17 @@ function! java_helper#_strcmp(str1, str2)
   endif
 endfunction
 
+" get class information by javap.
+function! java_helper#_javap(jarfile, target)
+  let cmd = 'javap -cp ' . a:jarfile . ' '
+  if type(a:target) == type([])
+    let cmd .= join(a:target, ' ')
+  else
+    let cmd .= a:target
+  endif
+  return split(system(cmd), '\n')
+endfunction
+
 "###########################################################################
 
 function! java_helper#revision()
@@ -412,4 +423,8 @@ function! java_helper#db_select_class(db, shortname)
   else
     return java_helper#db_select_class1(a:db, a:shortname)
   endif
+endfunction
+
+function! java_helper#db_detail(db, target)
+  return java_helper#_javap(a:db['jarfile'], a:target)
 endfunction
