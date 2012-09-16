@@ -13,7 +13,7 @@ scriptencoding utf-8
 let s:revision = 1
 let s:classes = {}
 if !exists('s:db')
-  let s:db = []
+  let s:db = {}
 endif
 
 "###########################################################################
@@ -123,7 +123,8 @@ endfunction
 
 " reset database.
 function! java_helper#reset_db()
-  let s:db = []
+  unlet s:db
+  let s:db = {}
 endfunction
 
 function! java_helper#setup_db(force)
@@ -359,8 +360,17 @@ function! java_helper#db_to_item(fullname)
 endfunction
 
 function! java_helper#db_load(jarfile)
-  let table = java_helper#db_load_jar(a:jarfile)
-  return map(table, 'java_helper#db_to_item(v:val)')
+  let classes = java_helper#db_load_jar(a:jarfile)
+  call map(classes, 'java_helper#db_to_item(v:val)')
+  let class_table = {}
+  for class in classes
+    let class_table[class['fname']] = class
+  endfor
+  return {
+        \ 'jarfile': a:jarfile,
+        \ 'classes': classes,
+        \ 'class_table': class_table,
+        \ }
 endfunction
 
 function! java_helper#db_match_by_shortname(item, shortname)
@@ -370,7 +380,7 @@ endfunction
 
 function! java_helper#db_select_class1(db, shortname)
   let retval = []
-  for item in a:db
+  for item in a:db['classes']
     if !java_helper#db_match_by_shortname(item, a:shortname)
       continue
     else
@@ -383,7 +393,7 @@ endfunction
 function! java_helper#db_select_class2(db, shortname)
   let retval = []
 lua << LUA_END
-  local db = vim.eval('a:db')
+  local db = vim.eval('a:db["classes"]')
   local shortname = vim.eval('a:shortname')
   local retval = vim.eval('retval')
   for item in db() do
