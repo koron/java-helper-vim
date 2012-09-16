@@ -95,7 +95,7 @@ endfunction
 
 function! java_helper#is_android()
   " TODO:
-  return 1
+  return 0
 endfunction
 
 " find jar file, return its full path.
