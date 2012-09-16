@@ -12,6 +12,9 @@ scriptencoding utf-8
 
 let s:revision = 1
 let s:classes = {}
+if !exists('s:db')
+  let s:db = []
+endif
 
 "###########################################################################
 
@@ -136,6 +139,19 @@ function! java_helper#setup(force)
   let s:classes = table
 endfunction
 
+function! java_helper#setup_db(force)
+  if !a:force && len(s:db) != 0
+    return s:db
+  endif
+  let jars = java_helper#list_jarfiles()
+  if len(jars) <= 0
+    return []
+  else
+    let s:db = java_helper#db_load(jars[0])
+    return s:db
+  endif
+endfunction
+
 " assort classes by shortname.
 function! java_helper#assort_by_shortname(table, classes)
   for class in a:classes
@@ -155,7 +171,7 @@ function! java_helper#omni_complete(findstart, base)
   if a:findstart
     return java_helper#omni_first()
   else
-    return java_helper#omni_second(a:base)
+    return java_helper#omni_search2(a:base)
   endif
 endfunction
 
@@ -171,7 +187,7 @@ function! java_helper#omni_first()
   endif
 endfunction
 
-function! java_helper#omni_second(base)
+function! java_helper#omni_search1(base)
   call java_helper#setup(0)
   let short_keys = keys(s:classes)
   call filter(short_keys, 'v:val =~# a:base')
@@ -212,8 +228,32 @@ function! java_helper#omni_second(base)
   call sort(match3, 'java_helper#compare_items')
 
   let retval = { 'words': match1 + match2 + match3, 'refresh': 'always' }
-  let b:java_helper_last_omniretval = retval
+  let b:java_helper_last_omniwords = retval
   return retval
+endfunction
+
+function! java_helper#omni_search2(base)
+  let db = java_helper#setup_db(0)
+  let items = java_helper#db_select_class(db, a:base)
+  let words = java_helper#omni_format(items, a:base)
+  call sort(words, 'java_helper#compare_items')
+  let b:java_helper_last_omniwords = words
+  return { 'words': words }
+endfunction
+
+function! java_helper#omni_format(items, base)
+  return map(a:items, 'java_helper#omni_format_item(v:val, a:base)')
+endfunction
+
+function! java_helper#omni_format_item(item, base)
+  " TODO:
+  let order = 0
+  return {
+        \ 'word': a:item['fname'],
+        \ 'abbr': a:item['sname'],
+        \ 'menu': a:item['pname'],
+        \ '_order': order
+        \ }
 endfunction
 
 function! java_helper#compare_items(item1, item2)
@@ -241,7 +281,7 @@ endfunction
 " add import statement if can, replace to short name.
 function! java_helper#finish_complete()
   if !exists('b:java_helper_last_omnibase') ||
-        \ !exists('b:java_helper_last_omniretval')
+        \ !exists('b:java_helper_last_omniwords')
     return
   endif
   let line = getline('.')
@@ -256,7 +296,7 @@ function! java_helper#finish_complete()
   endif
 
   unlet b:java_helper_last_omnibase
-  unlet b:java_helper_last_omniretval
+  unlet b:java_helper_last_omniwords
 endfunction
 
 "###########################################################################
@@ -351,4 +391,57 @@ endfunction
 
 function! java_helper#db_load_jar_map(entry)
   return substitute(a:entry[:-7], '\m/', '.', 'g')
+endfunction
+
+function! java_helper#db_to_item(fullname)
+  return {
+        \ 'fname': a:fullname,
+        \ 'sname': java_helper#_simple_name(a:fullname),
+        \ 'pname': java_helper#_package_name(a:fullname),
+        \ 'methods': []
+        \ }
+endfunction
+
+function! java_helper#db_load(jarfile)
+  let table = java_helper#db_load_jar(a:jarfile)
+  return map(table, 'java_helper#db_to_item(v:val)')
+endfunction
+
+function! java_helper#db_match_by_shortname(item, shortname)
+  return a:item['sname'] =~# a:shortname
+endfunction
+
+function! java_helper#db_select_class1(db, shortname)
+  let retval = []
+  for item in a:db
+    if !java_helper#db_match_by_shortname(item, a:shortname)
+      continue
+    else
+      call add(retval, item)
+    endif
+  endfor
+  return retval
+endfunction
+
+function! java_helper#db_select_class2(db, shortname)
+  let retval = []
+lua << LUA_END
+  local db = vim.eval('a:db')
+  local shortname = vim.eval('a:shortname')
+  local retval = vim.eval('retval')
+  for item in db() do
+    if string.find(item['sname'], shortname) then
+      retval:add(item)
+    end
+  end
+LUA_END
+  return retval
+endfunction
+
+function! java_helper#db_select_class(db, shortname)
+  if has('lua')
+    return java_helper#db_select_class2(a:db, a:shortname)
+  else
+    return java_helper#db_select_class1(a:db, a:shortname)
+  endif
 endfunction
