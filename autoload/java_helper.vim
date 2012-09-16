@@ -1,11 +1,11 @@
 " vim:set ts=8 sts=2 sw=2 tw=0 et:
 "
-" java_helper.vim: Autoload plugin of Java Helper Plugin for Vim.
+" java_helper.vim - Autoload plugin of Java Helper Plugin for Vim.
 "
 " License: THE VIM LICENSE
 "
 " Copyright:
-"   - (C) 2012 KoRoN/MURAOKA Taro (koron.kaoriya@gmail.com)
+"   - (C) 2012 MURAOKA Taro (koron.kaoriya@gmail.com)
 "
 
 scriptencoding utf-8
