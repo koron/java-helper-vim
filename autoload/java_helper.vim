@@ -180,14 +180,30 @@ function! java_helper#omni_search2(base)
   endif
   let db = java_helper#setup_db(0)
   let items = java_helper#db_select_class(db, a:base)
+  call filter(items, 'java_helper#omni_format_filter(v:val)')
+  call java_helper#omni_detail(db, items)
   let words = java_helper#omni_format(items, a:base)
   call sort(words, 'java_helper#compare_items')
   let b:java_helper_last_omniwords = words
   return { 'words': words }
 endfunction
 
+function! java_helper#omni_detail(db, items)
+  let targets = []
+  for item in a:items
+    if len(item['stype']) == 0
+      call add(targets, item['fname'])
+      if len(targets) >= 50
+        break
+      endif
+    endif
+  endfor
+  if len(targets)
+    call java_helper#db_detail(a:db, targets)
+  endif
+endfunction
+
 function! java_helper#omni_format(items, base)
-  call filter(a:items, 'java_helper#omni_format_filter(v:val)')
   return map(a:items, 'java_helper#omni_format_item(v:val, a:base)')
 endfunction
 
@@ -219,7 +235,8 @@ function! java_helper#omni_format_item(item, base)
         \ 'word': a:item['fname'],
         \ 'abbr': a:item['sname'],
         \ 'menu': a:item['pname'],
-        \ '_order': order
+        \ 'kind': a:item['stype'],
+        \ '_order': order,
         \ }
 endfunction
 
@@ -366,7 +383,8 @@ function! java_helper#db_to_item(fullname)
         \ 'sname': java_helper#_simple_name(a:fullname),
         \ 'pname': java_helper#_package_name(a:fullname),
         \ 'pweight': java_helper#_get_weight(a:fullname),
-        \ 'methods': []
+        \ 'methods': [],
+        \ 'stype': '',
         \ }
 endfunction
 
@@ -426,5 +444,19 @@ function! java_helper#db_select_class(db, shortname)
 endfunction
 
 function! java_helper#db_detail(db, target)
-  return java_helper#_javap(a:db['jarfile'], a:target)
+  let lines = java_helper#_javap(a:db['jarfile'], a:target)
+  let item = {}
+  for line in lines
+    if line =~# '\m^\S.*{$'
+      let m = matchlist(line, '\<\(interface\|class\) \([0-9$.A-Z_a-z]\+\)')
+      if len(m) != 0
+        let item = get(a:db['class_table'], m[2], {})
+        let item['stype'] = m[1][0]
+      endif
+      continue
+    elseif line =~# '\m^}$'
+      let item = {}
+      continue
+    endif
+  endfor
 endfunction
