@@ -139,6 +139,11 @@ function! java_helper#setup(force)
   let s:classes = table
 endfunction
 
+" reset database.
+function! java_helper#reset_db()
+  let s:db = []
+endfunction
+
 function! java_helper#setup_db(force)
   if !a:force && len(s:db) != 0
     return s:db
@@ -169,13 +174,13 @@ endfunction
 
 function! java_helper#omni_complete(findstart, base)
   if a:findstart
-    return java_helper#omni_first()
+    return java_helper#omni_pre_search()
   else
     return java_helper#omni_search2(a:base)
   endif
 endfunction
 
-function! java_helper#omni_first()
+function! java_helper#omni_pre_search()
   let lstr = getline('.')
   let cnum = col('.')
   let idx = match(lstr, '\k\+\%' . cnum . 'c')
@@ -185,51 +190,6 @@ function! java_helper#omni_first()
   else
     return -1
   endif
-endfunction
-
-function! java_helper#omni_search1(base)
-  call java_helper#setup(0)
-  let short_keys = keys(s:classes)
-  call filter(short_keys, 'v:val =~# a:base')
-  call filter(short_keys, 'v:val !~# "\\$"')
-  call sort(short_keys)
-
-  let match1 = []
-  let match2 = []
-  let match3 = []
-
-  for short_name in short_keys
-    let values = s:classes[short_name]
-    for full_name in values
-      let item = {
-            \ 'word': full_name,
-            \ 'abbr': short_name,
-            \ 'menu': java_helper#_package_name(full_name),
-            \ '_order': java_helper#_get_weight(full_name)
-            \ }
-      if item['_order'] >= 500
-        continue
-      endif
-      if short_name ==# a:base
-        call add(match1, item)
-      else
-        let idx = match(short_name, a:base)
-        if idx == 0
-          call add(match2, item)
-        else
-          call add(match3, item)
-        endif
-      endif
-    endfor
-  endfor
-
-  call sort(match1, 'java_helper#compare_items')
-  call sort(match2, 'java_helper#compare_items')
-  call sort(match3, 'java_helper#compare_items')
-
-  let retval = { 'words': match1 + match2 + match3, 'refresh': 'always' }
-  let b:java_helper_last_omniwords = retval
-  return retval
 endfunction
 
 function! java_helper#omni_search2(base)
@@ -242,12 +202,34 @@ function! java_helper#omni_search2(base)
 endfunction
 
 function! java_helper#omni_format(items, base)
+  call filter(a:items, 'java_helper#omni_format_filter(v:val)')
   return map(a:items, 'java_helper#omni_format_item(v:val, a:base)')
 endfunction
 
+function! java_helper#omni_format_filter(item)
+  return a:item['pweight'] < 500
+endfunction
+
+function! java_helper#get_item_weight(item, base)
+  let order = a:item['pweight']
+  let name = a:item['sname']
+  if name ==# a:base
+    let order += 1000
+  elseif name ==? a:base
+    let order += 2000
+  else
+    let idx = stridx(name, a:base)
+    if idx == 0 || idx == len(name) - len(a:base)
+      let order += 3000
+    else
+      let order += 9000
+    endif
+  endif
+  return order
+endfunction
+
 function! java_helper#omni_format_item(item, base)
-  " TODO:
-  let order = 0
+  let order = java_helper#get_item_weight(a:item, a:base)
   return {
         \ 'word': a:item['fname'],
         \ 'abbr': a:item['sname'],
@@ -398,6 +380,7 @@ function! java_helper#db_to_item(fullname)
         \ 'fname': a:fullname,
         \ 'sname': java_helper#_simple_name(a:fullname),
         \ 'pname': java_helper#_package_name(a:fullname),
+        \ 'pweight': java_helper#_get_weight(a:fullname),
         \ 'methods': []
         \ }
 endfunction
@@ -408,7 +391,8 @@ function! java_helper#db_load(jarfile)
 endfunction
 
 function! java_helper#db_match_by_shortname(item, shortname)
-  return a:item['sname'] =~# a:shortname
+  let name = a:item['sname']
+  return stridx(name, a:shortname) >= 0 && stridx(name, '$') < 0
 endfunction
 
 function! java_helper#db_select_class1(db, shortname)
@@ -430,7 +414,8 @@ lua << LUA_END
   local shortname = vim.eval('a:shortname')
   local retval = vim.eval('retval')
   for item in db() do
-    if string.find(item['sname'], shortname) then
+    local name = item['sname']
+    if name:find(shortname) and not name:find('%$') then
       retval:add(item)
     end
   end
