@@ -1,4 +1,12 @@
 " vim:set ts=8 sts=2 sw=2 tw=0 et:
+"
+" java_helper.vim: Autoload plugin of Java Helper Plugin for Vim.
+"
+" License: THE VIM LICENSE
+"
+" Copyright:
+"   - (C) 2012 KoRoN/MURAOKA Taro (koron.kaoriya@gmail.com)
+"
 
 scriptencoding utf-8
 
@@ -8,11 +16,20 @@ let s:classes = {}
 "###########################################################################
 
 " regulate path (convert Windows style to UNIX style if needs)
-function! java_helper#regulate_path(path)
+function! java_helper#_regulate_path(path)
   if &shellslash
     return substitute(a:path, '\\', '/', 'g')
   else
     return a:path
+  endif
+endfunction
+
+" extract package name from full class name.
+function! java_helper#_package_name(full_name)
+  if a:full_name =~# '\.'
+    return substitute(a:full_name, '\.[^.]*$', '', '')
+  else
+    return '<no package>'
   endif
 endfunction
 
@@ -50,8 +67,20 @@ function! java_helper#_get_weight(name)
   return 499
 endfunction
 
-function! java_helper#compare_class(item1, item2)
+" compare classes by its significance for user.
+function! java_helper#_compare_class(item1, item2)
   return java_helper#_get_weight(a:item1) - java_helper#_get_weight(a:item2)
+endfunction
+
+" compare two strings.
+function! java_helper#_strcmp(str1, str2)
+  if a:str1 <# a:str2
+    return -1
+  elseif a:str1 ==# a:str2
+    return 0
+  else
+    return 1
+  endif
 endfunction
 
 "###########################################################################
@@ -60,14 +89,32 @@ function! java_helper#revision()
   return s:revision
 endfunction
 
+function! java_helper#is_android()
+  " TODO:
+  return 0
+endfunction
+
 " find jar file, return its full path.
 function! java_helper#find_jarfile(name)
-  let path = java_helper#regulate_path($JAVA_HOME) . '/jre/lib/' . a:name
+  let path = java_helper#_regulate_path($JAVA_HOME) . '/jre/lib/' . a:name
   if filereadable(path)
     return path
   else
     return ''
   end
+endfunction
+
+" list up valid jar files for current buffer and its project.
+function! java_helper#list_jarfiles()
+  let jars = []
+  if java_helper#is_android()
+    " TODO:
+    let sdkdir = java_helper#_regulate_path($ANDROID_SDK)
+    call add(jars, sdkdir . '/platforms/android-16/android.jar')
+  else
+    call add(jars, java_helper#find_jarfile('rt.jar'))
+  endif
+  return jars
 endfunction
 
 " list all (important) classes in a jar file.
@@ -87,23 +134,6 @@ function! java_helper#list_classes(file)
   endif
 endfunction
 
-function! java_helper#is_android()
-  " TODO:
-  return 0
-endfunction
-
-function! java_helper#list_jarfiles()
-  let jars = []
-  if java_helper#is_android()
-    " TODO:
-    let sdkdir = java_helper#regulate_path($ANDROID_SDK)
-    call add(jars, sdkdir . '/platforms/android-16/android.jar')
-  else
-    call add(jars, java_helper#find_jarfile('rt.jar'))
-  endif
-  return jars
-endfunction
-
 " setup internal data for this plugin.
 function! java_helper#setup(force)
   if !a:force && len(s:classes) != 0
@@ -118,22 +148,20 @@ function! java_helper#setup(force)
   let s:classes = table
 endfunction
 
+" assort classes by shortname.
 function! java_helper#assort_by_shortname(table, classes)
   for class in a:classes
     let name = java_helper#_simple_name(class)
     call java_helper#_add(a:table, name, class)
   endfor
   for names in values(a:table)
-    call sort(names, 'java_helper#compare_class')
+    call sort(names, 'java_helper#_compare_class')
   endfor
   return a:table
 endfunction
 
-" get full class name by short name.
-function! java_helper#fullname(short_name)
-  call java_helper#setup(0)
-  return get(s:classes, a:short_name, [])
-endfunction
+"###########################################################################
+" OMNI COMPLETION
 
 function! java_helper#omni_complete(findstart, base)
   if a:findstart
@@ -172,7 +200,7 @@ function! java_helper#omni_second(base)
       let item = {
             \ 'word': full_name,
             \ 'abbr': short_name,
-            \ 'menu': java_helper#package_name(full_name),
+            \ 'menu': java_helper#_package_name(full_name),
             \ '_order': java_helper#_get_weight(full_name)
             \ }
       if item['_order'] >= 500
@@ -200,38 +228,20 @@ function! java_helper#omni_second(base)
   return retval
 endfunction
 
-function! java_helper#package_name(full_name)
-  if a:full_name =~# '\.'
-    return substitute(a:full_name, '\.[^.]*$', '', '')
-  else
-    return '<no package>'
-  endif
-endfunction
-
-function! java_helper#strcmp(str1, str2)
-  if a:str1 <# a:str2
-    return -1
-  elseif a:str1 ==# a:str2
-    return 0
-  else
-    return 1
-  endif
-endfunction
-
 function! java_helper#compare_items(item1, item2)
   let diff = a:item1['_order'] - a:item2['_order']
   if diff != 0
     return diff
   endif
-  let diff = java_helper#strcmp(a:item1['menu'], a:item2['menu'])
+  let diff = java_helper#_strcmp(a:item1['menu'], a:item2['menu'])
   if diff != 0
     return diff
   endif
-  let diff = java_helper#strcmp(a:item1['abbr'], a:item2['abbr'])
+  let diff = java_helper#_strcmp(a:item1['abbr'], a:item2['abbr'])
   if diff != 0
     return diff
   endif
-  let diff = java_helper#strcmp(a:item1['word'], a:item2['word'])
+  let diff = java_helper#_strcmp(a:item1['word'], a:item2['word'])
   return diff
 endfunction
 
@@ -260,6 +270,9 @@ function! java_helper#finish_complete()
   unlet b:java_helper_last_omnibase
   unlet b:java_helper_last_omniretval
 endfunction
+
+"###########################################################################
+" IMPORT OPERATIONS
 
 function! java_helper#get_imports_range()
   let save_pos = getpos('.')
