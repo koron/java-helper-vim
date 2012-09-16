@@ -66,6 +66,7 @@ function! java_helper#_get_weight(name)
   if a:name =~# '\M^java.' | return 109 | endif
   if a:name =~# '\M^android.' | return 200 | endif
   if a:name =~# '\M^com.\(sun\|oracle\).' | return 900 | endif
+  if a:name =~# '\M^sunw.' | return 900 | endif
   if a:name =~# '\M^sun.' | return 900 | endif
   return 499
 endfunction
@@ -94,7 +95,7 @@ endfunction
 
 function! java_helper#is_android()
   " TODO:
-  return 0
+  return 1
 endfunction
 
 " find jar file, return its full path.
@@ -120,25 +121,6 @@ function! java_helper#list_jarfiles()
   return jars
 endfunction
 
-" list all (important) classes in a jar file.
-function! java_helper#list_classes(file)
-  return java_helper#db_load_jar(a:file)
-endfunction
-
-" setup internal data for this plugin.
-function! java_helper#setup(force)
-  if !a:force && len(s:classes) != 0
-    return
-  endif
-  let jars = java_helper#list_jarfiles()
-  let table = {}
-  for jar in jars
-    let classes = java_helper#list_classes(jar)
-    call java_helper#assort_by_shortname(table, classes)
-  endfor
-  let s:classes = table
-endfunction
-
 " reset database.
 function! java_helper#reset_db()
   let s:db = []
@@ -155,18 +137,6 @@ function! java_helper#setup_db(force)
     let s:db = java_helper#db_load(jars[0])
     return s:db
   endif
-endfunction
-
-" assort classes by shortname.
-function! java_helper#assort_by_shortname(table, classes)
-  for class in a:classes
-    let name = java_helper#_simple_name(class)
-    call java_helper#_add(a:table, name, class)
-  endfor
-  for names in values(a:table)
-    call sort(names, 'java_helper#_compare_class')
-  endfor
-  return a:table
 endfunction
 
 "###########################################################################
@@ -193,6 +163,9 @@ function! java_helper#omni_pre_search()
 endfunction
 
 function! java_helper#omni_search2(base)
+  if len(a:base) == 0
+    return []
+  endif
   let db = java_helper#setup_db(0)
   let items = java_helper#db_select_class(db, a:base)
   let words = java_helper#omni_format(items, a:base)
