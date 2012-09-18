@@ -109,6 +109,10 @@ function! java_helper#is_android()
   return 0
 endfunction
 
+function! java_helper#is_macosx()
+  return has('macunix')
+endfunction
+
 " find jar file, return its full path.
 function! java_helper#find_jarfile(name)
   let path = java_helper#_regulate_path($JAVA_HOME) . '/jre/lib/' . a:name
@@ -126,6 +130,8 @@ function! java_helper#list_jarfiles()
     " TODO:
     let sdkdir = java_helper#_regulate_path($ANDROID_SDK)
     call add(jars, sdkdir . '/platforms/android-16/android.jar')
+  elseif java_helper#is_macosx()
+    call add(jars, '/System/Library/Frameworks/JavaVM.framework/Classes/classes.jar')
   else
     call add(jars, java_helper#find_jarfile('rt.jar'))
   endif
