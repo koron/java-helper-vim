@@ -276,12 +276,13 @@ function! java_helper#finish_complete()
   endif
   let line = getline('.')
   let start = b:java_helper_last_omnibase
-  let end = col('.')
-  let selected = line[start : end]
+  let end = col('.') - 1
+  let selected = line[start : end - 1]
 
   if java_helper#add_import(selected)
     let prev = start > 0 ? line[0 : start - 1] : ''
     let short = java_helper#_simple_name(selected)
+    call cursor(line('.'), col('.') - (len(selected) - len(short)))
     call setline('.', prev . short . line[end : ])
   endif
 
