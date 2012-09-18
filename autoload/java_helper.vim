@@ -268,6 +268,15 @@ function! java_helper#complete_done()
   call java_helper#finish_complete()
 endfunction
 
+function! java_helper#is_candidate(words, selected)
+  for word in a:words
+    if word['word'] ==# a:selected
+      return 1
+    endif
+  endfor
+  return 0
+endfunction
+
 " add import statement if can, replace to short name.
 function! java_helper#finish_complete()
   if !exists('b:java_helper_last_omnibase') ||
@@ -279,7 +288,7 @@ function! java_helper#finish_complete()
   let end = col('.') - 1
   let selected = line[start : end - 1]
 
-  if java_helper#add_import(selected)
+  if java_helper#is_candidate(b:java_helper_last_omniwords, selected) && java_helper#add_import(selected)
     let prev = start > 0 ? line[0 : start - 1] : ''
     let short = java_helper#_simple_name(selected)
     call cursor(line('.'), col('.') - (len(selected) - len(short)))
